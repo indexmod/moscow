@@ -22,7 +22,7 @@ export default {
       try {
         const u = new URL(page);
 
-        // защита: только indexmod.press
+        // защита источника
         if (!u.hostname.includes("indexmod.press")) {
           return Response.json({ title: "Untitled" });
         }
@@ -33,29 +33,29 @@ export default {
         }
 
         const api = `${u.origin}/_get/${slug}`;
-
         const res = await fetch(api);
+
         if (!res.ok) {
           return Response.json({ title: "Untitled" });
         }
 
         const data = await res.json();
-
         const content = data?.content || "";
 
-        // более строгий frontmatter парсер
-        const match = content.match(
-          /---[\s\S]*?title:\s*([^\r\n]+)[\r\n]+/i
-        );
+        // стабильный frontmatter парсер
+        const block = content.match(/---([\s\S]*?)---/);
+        let title = null;
 
-        const title =
-          (match?.[1] || "").trim() ||
-          data?.title ||
-          slug ||
-          "Untitled";
+        if (block) {
+          const t = block[1].match(/title:\s*([^\r\n]+)/i);
+          if (t) title = t[1].trim();
+        }
 
-        return Response.json({ title });
-      } catch (e) {
+        return Response.json({
+          title: title || data?.title || slug || "Untitled"
+        });
+
+      } catch {
         return Response.json({ title: "Untitled" });
       }
     }
@@ -140,10 +140,11 @@ html,body{
 <script>
 const ws = document.getElementById("workspace");
 let nodes = [];
-
-// защита от двойного paste / гонок
 let busy = false;
 
+// =====================
+// PASTE
+// =====================
 document.addEventListener("paste", async (e) => {
   const text = e.clipboardData.getData("text");
 
@@ -167,11 +168,15 @@ document.addEventListener("paste", async (e) => {
     ws.appendChild(node.el);
     nodes.push(node);
     save();
+
   } finally {
     busy = false;
   }
 });
 
+// =====================
+// NODE
+// =====================
 function createNode(d){
   const el = document.createElement("div");
   el.className = "node";
@@ -234,6 +239,9 @@ function createNode(d){
   };
 }
 
+// =====================
+// SAVE / LOAD
+// =====================
 async function save(){
   await fetch("/api/save",{
     method:"POST",
