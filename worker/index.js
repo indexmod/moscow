@@ -2,39 +2,75 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
 
+    // =====================
+    // UI
+    // =====================
     if (url.pathname === "/") {
       return new Response(html, {
-        headers: { "Content-Type": "text/html; charset=utf-8" }
+        headers: {
+          "Content-Type": "text/html; charset=utf-8"
+        }
       });
     }
 
+    // =====================
+    // GET TITLE (STABLE FRONTMATTER)
+    // =====================
     if (url.pathname === "/api/title") {
       const page = url.searchParams.get("url");
 
       try {
         const u = new URL(page);
+
+        // защита: только indexmod.press
+        if (!u.hostname.includes("indexmod.press")) {
+          return Response.json({ title: "Untitled" });
+        }
+
         const slug = u.pathname.split("/").filter(Boolean).pop();
+        if (!slug) {
+          return Response.json({ title: "Untitled" });
+        }
+
         const api = `${u.origin}/_get/${slug}`;
 
         const res = await fetch(api);
+        if (!res.ok) {
+          return Response.json({ title: "Untitled" });
+        }
+
         const data = await res.json();
 
-        const content = data.content || "";
-        const match = content.match(/---[\s\S]*?title:\s*(.+?)[\r\n]+/i);
+        const content = data?.content || "";
 
-        return Response.json({
-          title: match?.[1]?.trim() || data.title || "Untitled"
-        });
-      } catch {
+        // более строгий frontmatter парсер
+        const match = content.match(
+          /---[\s\S]*?title:\s*([^\r\n]+)[\r\n]+/i
+        );
+
+        const title =
+          (match?.[1] || "").trim() ||
+          data?.title ||
+          slug ||
+          "Untitled";
+
+        return Response.json({ title });
+      } catch (e) {
         return Response.json({ title: "Untitled" });
       }
     }
 
+    // =====================
+    // LOAD
+    // =====================
     if (url.pathname === "/api/load") {
       const raw = await env.MOSCOW_DB.get("state");
       return Response.json(raw ? JSON.parse(raw) : { cards: [] });
     }
 
+    // =====================
+    // SAVE
+    // =====================
     if (url.pathname === "/api/save") {
       const data = await req.json();
       await env.MOSCOW_DB.put("state", JSON.stringify(data));
@@ -91,6 +127,7 @@ html,body{
   color:white;
   cursor:pointer;
   opacity:0.6;
+  margin-left:4px;
 }
 .del:hover{ opacity:1; }
 </style>
@@ -104,24 +141,35 @@ html,body{
 const ws = document.getElementById("workspace");
 let nodes = [];
 
+// защита от двойного paste / гонок
+let busy = false;
+
 document.addEventListener("paste", async (e) => {
   const text = e.clipboardData.getData("text");
+
   if (!text.startsWith("http")) return;
+  if (busy) return;
 
-  const r = await fetch("/api/title?url=" + encodeURIComponent(text));
-  const meta = await r.json();
+  busy = true;
 
-  const node = createNode({
-    id: crypto.randomUUID(),
-    title: meta.title,
-    link: text,
-    x: innerWidth/2,
-    y: innerHeight/2
-  });
+  try {
+    const r = await fetch("/api/title?url=" + encodeURIComponent(text));
+    const meta = await r.json();
 
-  ws.appendChild(node.el);
-  nodes.push(node);
-  save();
+    const node = createNode({
+      id: crypto.randomUUID(),
+      title: meta.title || "Untitled",
+      link: text,
+      x: innerWidth/2,
+      y: innerHeight/2
+    });
+
+    ws.appendChild(node.el);
+    nodes.push(node);
+    save();
+  } finally {
+    busy = false;
+  }
 });
 
 function createNode(d){
@@ -180,8 +228,8 @@ function createNode(d){
       id:d.id,
       title:d.title,
       link:d.link,
-      x:parseInt(el.style.left),
-      y:parseInt(el.style.top)
+      x:parseInt(el.style.left||0),
+      y:parseInt(el.style.top||0)
     })
   };
 }
