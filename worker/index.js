@@ -2,26 +2,17 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
 
-    // =====================
-    // UI
-    // =====================
     if (url.pathname === "/") {
       return new Response(html, {
         headers: { "Content-Type": "text/html; charset=utf-8" }
       });
     }
 
-    // =====================
-    // LOAD
-    // =====================
     if (url.pathname === "/api/load") {
       const raw = await env.MOSCOW_DB.get("state");
       return Response.json(raw ? JSON.parse(raw) : { cards: [] });
     }
 
-    // =====================
-    // SAVE
-    // =====================
     if (url.pathname === "/api/save") {
       const data = await req.json();
       await env.MOSCOW_DB.put("state", JSON.stringify(data));
@@ -49,7 +40,6 @@ html, body {
   font-family: Arial;
 }
 
-/* MAP LAYER */
 #map {
   position: fixed;
   inset: 0;
@@ -62,7 +52,6 @@ html, body {
   opacity: 0.12;
 }
 
-/* WORKSPACE */
 #workspace {
   position: fixed;
   inset: 0;
@@ -71,10 +60,9 @@ html, body {
   z-index: 1;
 }
 
-/* CARD */
 .card {
   position: absolute;
-  width: 200px;
+  width: 220px;
   background: #1f1f22;
   padding: 12px;
   border-radius: 14px;
@@ -82,7 +70,6 @@ html, body {
   box-shadow: 0 8px 20px rgba(0,0,0,0.35);
 }
 
-/* DRAG HANDLE */
 .handle {
   width: 10px;
   height: 10px;
@@ -92,14 +79,23 @@ html, body {
   margin-bottom: 10px;
 }
 
-/* FIELDS */
-.title, .link {
+.title {
   outline: none;
   padding: 6px;
   margin-bottom: 6px;
   background: rgba(255,255,255,0.06);
   border-radius: 6px;
-  min-height: 18px;
+  font-weight: 600;
+}
+
+.link {
+  outline: none;
+  padding: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #7db3ff;
+  word-break: break-all;
 }
 </style>
 </head>
@@ -118,6 +114,45 @@ html, body {
 <script>
 let cards = [];
 const workspace = document.getElementById("workspace");
+
+// =====================
+// PASTE → CARD
+// =====================
+document.addEventListener("paste", (e) => {
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+  if (!text || !text.startsWith("http")) return;
+
+  createFromLink(text);
+});
+
+function createFromLink(url) {
+  const slug = extractSlug(url);
+
+  const card = createCard({
+    id: crypto.randomUUID(),
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    title: slug,
+    link: url
+  });
+
+  workspace.appendChild(card.el);
+  cards.push(card);
+  save();
+}
+
+// =====================
+// SLUG
+// =====================
+function extractSlug(url) {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+    return parts[parts.length - 1] || u.hostname;
+  } catch {
+    return "link";
+  }
+}
 
 // =====================
 // LOAD
@@ -145,8 +180,8 @@ function createCard(data) {
 
   el.innerHTML = \`
     <div class="handle"></div>
-    <div contenteditable class="title">\${data.title ?? ""}</div>
-    <div contenteditable class="link">\${data.link ?? ""}</div>
+    <div class="title">\${data.title ?? ""}</div>
+    <div class="link">\${data.link ?? ""}</div>
   \`;
 
   let drag = false;
