@@ -3,7 +3,7 @@ export default {
     const url = new URL(req.url);
 
     // =====================
-    // UI (ВСЁ В ОДНОМ МЕСТЕ)
+    // UI
     // =====================
     if (url.pathname === "/") {
       return new Response(html, {
@@ -32,40 +32,57 @@ export default {
   }
 };
 
-const html = `
-<!doctype html>
+const html = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <title>Moscow Board</title>
 
 <style>
-body {
+html, body {
   margin: 0;
-  font-family: Arial;
-  background: #0f0f10;
-  overflow: hidden;
-  color: white;
-}
-
-#workspace {
-  position: absolute;
+  padding: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background: #0f0f10;
+  font-family: Arial;
+}
+
+/* MAP LAYER */
+#map {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
 }
 
 #map circle {
-  opacity: 0.15;
+  opacity: 0.12;
 }
 
+/* WORKSPACE */
+#workspace {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+}
+
+/* CARD */
 .card {
   position: absolute;
   width: 200px;
   background: #1f1f22;
   padding: 12px;
   border-radius: 14px;
+  color: white;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
 }
 
+/* DRAG HANDLE */
 .handle {
   width: 10px;
   height: 10px;
@@ -75,19 +92,21 @@ body {
   margin-bottom: 10px;
 }
 
+/* FIELDS */
 .title, .link {
   outline: none;
   padding: 6px;
   margin-bottom: 6px;
   background: rgba(255,255,255,0.06);
   border-radius: 6px;
+  min-height: 18px;
 }
 </style>
 </head>
 
 <body>
 
-<svg id="map" width="100%" height="100%">
+<svg id="map">
   <circle cx="300" cy="300" r="180" fill="red"/>
   <circle cx="650" cy="300" r="180" fill="green"/>
   <circle cx="475" cy="180" r="180" fill="blue"/>
@@ -100,6 +119,9 @@ body {
 let cards = [];
 const workspace = document.getElementById("workspace");
 
+// =====================
+// LOAD
+// =====================
 async function load() {
   const res = await fetch("/api/load");
   const data = await res.json();
@@ -111,26 +133,33 @@ async function load() {
   });
 }
 
+// =====================
+// CREATE CARD
+// =====================
 function createCard(data) {
   const el = document.createElement("div");
   el.className = "card";
-  el.style.left = data.x + "px";
-  el.style.top = data.y + "px";
+
+  el.style.left = (data.x ?? 100) + "px";
+  el.style.top = (data.y ?? 100) + "px";
 
   el.innerHTML = \`
     <div class="handle"></div>
-    <div contenteditable class="title">\${data.title || ""}</div>
-    <div contenteditable class="link">\${data.link || ""}</div>
+    <div contenteditable class="title">\${data.title ?? ""}</div>
+    <div contenteditable class="link">\${data.link ?? ""}</div>
   \`;
 
   let drag = false;
   let dx = 0;
   let dy = 0;
 
-  el.querySelector(".handle").onpointerdown = (e) => {
+  const handle = el.querySelector(".handle");
+
+  handle.onpointerdown = (e) => {
     drag = true;
     dx = e.clientX - el.offsetLeft;
     dy = e.clientY - el.offsetTop;
+    handle.setPointerCapture(e.pointerId);
   };
 
   window.onpointermove = (e) => {
@@ -140,6 +169,7 @@ function createCard(data) {
   };
 
   window.onpointerup = () => {
+    if (!drag) return;
     drag = false;
     save();
   };
@@ -149,16 +179,20 @@ function createCard(data) {
     el,
     get: () => ({
       id: data.id,
-      x: parseInt(el.style.left),
-      y: parseInt(el.style.top),
+      x: parseInt(el.style.left || 0),
+      y: parseInt(el.style.top || 0),
       title: el.querySelector(".title").innerText,
       link: el.querySelector(".link").innerText
     })
   };
 }
 
+// =====================
+// SAVE
+// =====================
 async function save() {
   const state = cards.map(c => c.get());
+
   await fetch("/api/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -170,5 +204,4 @@ load();
 </script>
 
 </body>
-</html>
-`;
+</html>`;
