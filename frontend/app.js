@@ -25,6 +25,7 @@ function createCard(data) {
 
   el.innerHTML = `
     <div class="handle"></div>
+    <button class="delete">×</button>
     <div class="title" contenteditable="true">${data.title}</div>
     <div class="link" contenteditable="true">${data.link}</div>
   `;
@@ -32,6 +33,14 @@ function createCard(data) {
   const handle = el.querySelector(".handle");
   const title = el.querySelector(".title");
   const link = el.querySelector(".link");
+  const del = el.querySelector(".delete");
+
+  // 🗑 удаление карточки
+  del.addEventListener("click", () => {
+    cards = cards.filter(c => c.id !== data.id);
+    el.remove();
+    save();
+  });
 
   let drag = false;
   let dx = 0;
