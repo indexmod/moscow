@@ -3,5 +3,5 @@ main = "worker/index.js"
 compatibility_date = "2026-06-27"
 
 [[kv_namespaces]]
-binding = "MAP"
-id = "YOUR_KV_ID"
+binding = "MOSCOW_DB"
+id = "5d4c222750104afc9523626bb4a39924"
