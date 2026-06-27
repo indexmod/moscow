@@ -14,28 +14,41 @@ export default {
     }
 
     // =====================
-    // GET TITLE
+    // GET TITLE (REAL FRONTMATTER)
     // =====================
     if (url.pathname === "/api/title") {
       const page = url.searchParams.get("url");
 
       try {
-        const source = await fetch(page).then(r => r.text());
+        const u = new URL(page);
+        const slug = u.pathname.split("/").filter(Boolean).pop();
 
-        const match = source.match(
-          /title:\s*(.+)/i
+        const api = `${u.origin}/_get/${slug}`;
+
+        const res = await fetch(api);
+        const data = await res.json();
+
+        const content = data.content || "";
+
+        // ищем frontmatter:
+        // ---
+        // title: Винзавод
+        // slug: vinzavod
+        // ---
+        const match = content.match(
+          /---[\s\S]*?title:\s*(.+?)[\r\n]+/i
         );
 
+        const title = match?.[1]?.trim();
+
         return Response.json({
-          title: match?.[1]?.trim() || "Untitled"
+          title: title || data.title || "Untitled"
         });
 
-      } catch {
-
+      } catch (e) {
         return Response.json({
           title: "Untitled"
         });
-
       }
     }
 
@@ -46,9 +59,7 @@ export default {
       const raw = await env.MOSCOW_DB.get("state");
 
       return Response.json(
-        raw
-          ? JSON.parse(raw)
-          : { cards: [] }
+        raw ? JSON.parse(raw) : { cards: [] }
       );
     }
 
@@ -63,12 +74,10 @@ export default {
         JSON.stringify(data)
       );
 
-      return Response.json({ ok:true });
+      return Response.json({ ok: true });
     }
 
-    return new Response("not found", {
-      status:404
-    });
+    return new Response("not found", { status: 404 });
   }
 };
 
@@ -82,63 +91,57 @@ const html = `
 
 <style>
 
-html,
-body{
-  margin:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
-  background:#0f0f10;
-  font-family:Arial,sans-serif;
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0f0f10;
+  font-family: Arial, sans-serif;
 }
 
-#map{
-  position:fixed;
-  inset:0;
-  width:100%;
-  height:100%;
+#map {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-#map circle{
-  opacity:.12;
+#map circle {
+  opacity: .12;
 }
 
-#workspace{
-  position:fixed;
-  inset:0;
+#workspace {
+  position: fixed;
+  inset: 0;
 }
 
-/* ===================== */
 /* NODE */
-/* ===================== */
 
-.node{
-  position:absolute;
-
-  display:flex;
-  align-items:center;
-  gap:12px;
+.node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.handle{
-  width:12px;
-  height:12px;
-
-  border-radius:50%;
-  background:white;
-
-  cursor:grab;
-  flex:none;
+.handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  cursor: grab;
+  flex: none;
 }
 
-.title{
-  color:white;
-  text-decoration:none;
-  font-size:22px;
+.title {
+  color: white;
+  text-decoration: none;
+  font-size: 22px;
 }
 
-.title:hover{
-  text-decoration:underline;
+.title:hover {
+  text-decoration: underline;
 }
 
 </style>
@@ -148,33 +151,10 @@ body{
 
 <svg id="map">
 
-<circle
-cx="300"
-cy="300"
-r="180"
-fill="red"
-/>
-
-<circle
-cx="650"
-cy="300"
-r="180"
-fill="green"
-/>
-
-<circle
-cx="475"
-cy="180"
-r="180"
-fill="blue"
-/>
-
-<circle
-cx="475"
-cy="480"
-r="180"
-fill="yellow"
-/>
+<circle cx="300" cy="300" r="180" fill="red"/>
+<circle cx="650" cy="300" r="180" fill="green"/>
+<circle cx="475" cy="180" r="180" fill="blue"/>
+<circle cx="475" cy="480" r="180" fill="yellow"/>
 
 </svg>
 
@@ -182,211 +162,110 @@ fill="yellow"
 
 <script>
 
-const workspace =
-document.getElementById("workspace");
-
+const workspace = document.getElementById("workspace");
 let cards = [];
 
 /* ===================== */
 /* PASTE */
 /* ===================== */
 
-document.addEventListener(
-"paste",
-async (e)=>{
+document.addEventListener("paste", async (e) => {
+  const text = (e.clipboardData || window.clipboardData).getData("text");
 
-const text =
-(e.clipboardData || window.clipboardData)
-.getData("text");
+  if (!text.startsWith("http")) return;
 
-if(!text.startsWith("http"))
-return;
+  const r = await fetch("/api/title?url=" + encodeURIComponent(text));
+  const meta = await r.json();
 
-const r =
-await fetch(
-"/api/title?url=" +
-encodeURIComponent(text)
-);
+  const node = createNode({
+    id: crypto.randomUUID(),
+    title: meta.title || "Untitled",
+    link: text,
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2
+  });
 
-const meta =
-await r.json();
-
-const node =
-createNode({
-
-id:crypto.randomUUID(),
-
-title:
-meta.title || "Untitled",
-
-link:text,
-
-x:
-window.innerWidth/2,
-
-y:
-window.innerHeight/2
-
+  workspace.appendChild(node.el);
+  cards.push(node);
+  save();
 });
 
-workspace.appendChild(node.el);
-
-cards.push(node);
-
-save();
-
-});
-
-/* ===================== */
 /* NODE */
-/* ===================== */
 
-function createNode(data){
+function createNode(data) {
+  const el = document.createElement("div");
+  el.className = "node";
 
-const el =
-document.createElement("div");
+  el.style.left = (data.x || 100) + "px";
+  el.style.top = (data.y || 100) + "px";
 
-el.className = "node";
+  el.innerHTML = `
+    <div class="handle"></div>
+    <a class="title" href="${data.link}" target="_blank">
+      ${data.title}
+    </a>
+  `;
 
-el.style.left =
-(data.x || 100)+"px";
+  const handle = el.querySelector(".handle");
 
-el.style.top =
-(data.y || 100)+"px";
+  let drag = false;
+  let dx = 0;
+  let dy = 0;
 
-el.innerHTML = \`
-<div class="handle"></div>
+  handle.onpointerdown = (e) => {
+    drag = true;
+    dx = e.clientX - el.offsetLeft;
+    dy = e.clientY - el.offsetTop;
+  };
 
-<a
-class="title"
-href="\${data.link}"
-target="_blank"
->
-\${data.title}
-</a>
-\`;
+  window.onpointermove = (e) => {
+    if (!drag) return;
+    el.style.left = (e.clientX - dx) + "px";
+    el.style.top = (e.clientY - dy) + "px";
+  };
 
-const handle =
-el.querySelector(".handle");
+  window.onpointerup = () => {
+    if (!drag) return;
+    drag = false;
+    save();
+  };
 
-let drag = false;
-let dx = 0;
-let dy = 0;
-
-handle.onpointerdown = e => {
-
-drag = true;
-
-dx =
-e.clientX -
-el.offsetLeft;
-
-dy =
-e.clientY -
-el.offsetTop;
-
-};
-
-window.onpointermove = e => {
-
-if(!drag)
-return;
-
-el.style.left =
-(e.clientX-dx)+"px";
-
-el.style.top =
-(e.clientY-dy)+"px";
-
-};
-
-window.onpointerup = ()=>{
-
-if(!drag)
-return;
-
-drag = false;
-
-save();
-
-};
-
-return {
-
-id:data.id,
-
-el,
-
-get:()=>({
-
-id:data.id,
-
-title:data.title,
-
-link:data.link,
-
-x:parseInt(el.style.left),
-
-y:parseInt(el.style.top)
-
-})
-
-};
-
+  return {
+    id: data.id,
+    el,
+    get: () => ({
+      id: data.id,
+      title: data.title,
+      link: data.link,
+      x: parseInt(el.style.left),
+      y: parseInt(el.style.top)
+    })
+  };
 }
 
-/* ===================== */
 /* SAVE */
-/* ===================== */
 
-async function save(){
+async function save() {
+  const state = cards.map(c => c.get());
 
-const state =
-cards.map(c=>c.get());
-
-await fetch("/api/save",{
-
-method:"POST",
-
-headers:{
-"Content-Type":
-"application/json"
-},
-
-body:JSON.stringify({
-cards:state
-})
-
-});
-
+  await fetch("/api/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cards: state })
+  });
 }
 
-/* ===================== */
 /* LOAD */
-/* ===================== */
 
-async function load(){
+async function load() {
+  const res = await fetch("/api/load");
+  const data = await res.json();
 
-const res =
-await fetch("/api/load");
-
-const data =
-await res.json();
-
-for(const item of
-(data.cards || [])){
-
-const node =
-createNode(item);
-
-workspace.appendChild(
-node.el
-);
-
-cards.push(node);
-
-}
-
+  for (const item of (data.cards || [])) {
+    const node = createNode(item);
+    workspace.appendChild(node.el);
+    cards.push(node);
+  }
 }
 
 load();
