@@ -1,22 +1,31 @@
-const workspace = document.getElementById("workspace");
-const addBtn = document.getElementById("addBtn");
-
 let cards = [];
 
-addBtn.onclick = () => {
+const workspace = document.getElementById("workspace");
+
+// =========================
+// 📌 PASTE → AUTO CARD
+// =========================
+document.addEventListener("paste", (e) => {
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+
+  if (!isValidUrl(text)) return;
+
   const card = createCard({
     id: crypto.randomUUID(),
-    x: 100,
-    y: 100,
-    title: "Topic",
-    link: "https://"
+    title: extractTitle(text),
+    link: text,
+    x: 200,
+    y: 200
   });
 
   workspace.appendChild(card.el);
   cards.push(card);
   save();
-};
+});
 
+// =========================
+// 🧱 CREATE CARD
+// =========================
 function createCard(data) {
   const el = document.createElement("div");
   el.className = "card";
@@ -25,72 +34,66 @@ function createCard(data) {
 
   el.innerHTML = `
     <div class="handle"></div>
-    <button class="delete">×</button>
-    <div class="title" contenteditable="true">${data.title}</div>
-    <div class="link" contenteditable="true">${data.link}</div>
+    <div contenteditable class="title">${data.title}</div>
+    <div contenteditable class="link">${data.link}</div>
   `;
-
-  const handle = el.querySelector(".handle");
-  const title = el.querySelector(".title");
-  const link = el.querySelector(".link");
-  const del = el.querySelector(".delete");
-
-  // 🗑 удаление карточки
-  del.addEventListener("click", () => {
-    cards = cards.filter(c => c.id !== data.id);
-    el.remove();
-    save();
-  });
 
   let drag = false;
   let dx = 0;
   let dy = 0;
 
-  handle.addEventListener("pointerdown", (e) => {
+  el.querySelector(".handle").onpointerdown = (e) => {
     drag = true;
     dx = e.clientX - el.offsetLeft;
     dy = e.clientY - el.offsetTop;
-    handle.setPointerCapture(e.pointerId);
-  });
+  };
 
-  handle.addEventListener("pointermove", (e) => {
+  window.onpointermove = (e) => {
     if (!drag) return;
     el.style.left = (e.clientX - dx) + "px";
     el.style.top = (e.clientY - dy) + "px";
-  });
+  };
 
-  handle.addEventListener("pointerup", () => {
+  window.onpointerup = () => {
+    if (!drag) return;
     drag = false;
     save();
-  });
-
-  title.oninput = save;
-  link.oninput = save;
+  };
 
   return {
     id: data.id,
     el,
-    getState: () => ({
+    get: () => ({
       id: data.id,
-      x: parseInt(el.style.left),
-      y: parseInt(el.style.top),
-      title: title.innerText,
-      link: link.innerText
+      x: parseInt(el.style.left || 0),
+      y: parseInt(el.style.top || 0),
+      title: el.querySelector(".title").innerText,
+      link: el.querySelector(".link").innerText
     })
   };
 }
 
-function save() {
-  const state = cards.map(c => c.getState());
-  localStorage.setItem("moscow", JSON.stringify(state));
+// =========================
+// 💾 SAVE
+// =========================
+async function save() {
+  const state = cards.map(c => c.get());
+
+  await fetch("/api/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cards: state })
+  });
 }
 
-function load() {
-  const raw = localStorage.getItem("moscow");
-  if (!raw) return;
+// =========================
+// 📥 LOAD
+// =========================
+async function load() {
+  const res = await fetch("/api/load");
+  const data = await res.json();
 
-  const data = JSON.parse(raw);
-  data.forEach(d => {
+  (data.cards || []).forEach(d => {
     const card = createCard(d);
     workspace.appendChild(card.el);
     cards.push(card);
@@ -98,3 +101,24 @@ function load() {
 }
 
 load();
+
+// =========================
+// 🔧 HELPERS
+// =========================
+function isValidUrl(str) {
+  try {
+    new URL(str);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function extractTitle(url) {
+  try {
+    const u = new URL(url);
+    return u.pathname.replace(/\//g, "") || u.hostname;
+  } catch {
+    return "link";
+  }
+}

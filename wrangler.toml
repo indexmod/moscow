@@ -1,0 +1,7 @@
+name = "moscow"
+main = "worker/index.js"
+compatibility_date = "2026-06-27"
+
+[[kv_namespaces]]
+binding = "MAP"
+id = "YOUR_KV_ID"

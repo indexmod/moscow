@@ -2,28 +2,30 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
 
-    // GET BOARD
-    if (url.pathname === "/api/get") {
-      const data = await env.BOARD.get("state");
-
-      return new Response(
-        data || JSON.stringify({ cards: [], updatedAt: 0 }),
-        { headers: { "Content-Type": "application/json" } }
-      );
+    // =====================
+    // UI
+    // =====================
+    if (url.pathname === "/") {
+      return fetch("https://moscow.pages.dev/index.html");
     }
 
-    // SAVE BOARD
+    // =====================
+    // LOAD STATE
+    // =====================
+    if (url.pathname === "/api/load") {
+      const raw = await env.MAP.get("state");
+      return Response.json(raw ? JSON.parse(raw) : { cards: [] });
+    }
+
+    // =====================
+    // SAVE STATE
+    // =====================
     if (url.pathname === "/api/save") {
-      const body = await req.json();
-
-      await env.BOARD.put(
-        "state",
-        JSON.stringify(body)
-      );
-
+      const data = await req.json();
+      await env.MAP.put("state", JSON.stringify(data));
       return Response.json({ ok: true });
     }
 
-    return new Response("ok");
+    return new Response("not found", { status: 404 });
   }
 };
