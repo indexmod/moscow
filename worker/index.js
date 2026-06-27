@@ -2,60 +2,39 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
 
-    // =====================
-    // UI
-    // =====================
     if (url.pathname === "/") {
       return new Response(html, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8"
-        }
+        headers: { "Content-Type": "text/html; charset=utf-8" }
       });
     }
 
-    // =====================
-    // GET TITLE FROM INDEXMOD MD
-    // =====================
     if (url.pathname === "/api/title") {
       const page = url.searchParams.get("url");
 
       try {
         const u = new URL(page);
         const slug = u.pathname.split("/").filter(Boolean).pop();
-
         const api = `${u.origin}/_get/${slug}`;
+
         const res = await fetch(api);
         const data = await res.json();
 
         const content = data.content || "";
-
-        // frontmatter title
-        const match = content.match(
-          /---[\s\S]*?title:\s*(.+?)[\r\n]+/i
-        );
-
-        const title = match?.[1]?.trim();
+        const match = content.match(/---[\s\S]*?title:\s*(.+?)[\r\n]+/i);
 
         return Response.json({
-          title: title || data.title || "Untitled"
+          title: match?.[1]?.trim() || data.title || "Untitled"
         });
-
-      } catch (e) {
+      } catch {
         return Response.json({ title: "Untitled" });
       }
     }
 
-    // =====================
-    // LOAD
-    // =====================
     if (url.pathname === "/api/load") {
       const raw = await env.MOSCOW_DB.get("state");
       return Response.json(raw ? JSON.parse(raw) : { cards: [] });
     }
 
-    // =====================
-    // SAVE
-    // =====================
     if (url.pathname === "/api/save") {
       const data = await req.json();
       await env.MOSCOW_DB.put("state", JSON.stringify(data));
@@ -79,7 +58,7 @@ html,body{
   height:100%;
   overflow:hidden;
   background:#0f0f10;
-  font-family:Arial,sans-serif;
+  font-family:Arial;
 }
 
 #workspace{
@@ -87,7 +66,6 @@ html,body{
   inset:0;
 }
 
-/* NODE */
 .node{
   position:absolute;
   display:flex;
@@ -95,40 +73,26 @@ html,body{
   gap:10px;
 }
 
-/* DOT */
 .dot{
   width:10px;
   height:10px;
   border-radius:50%;
-  background:#fff;
+  background:white;
   cursor:grab;
-  flex:none;
 }
 
-/* TITLE */
 .title{
-  color:#fff;
-  font-size:20px;
+  color:white;
   text-decoration:none;
-  cursor:pointer;
+  font-size:20px;
 }
 
-.title:hover{
-  text-decoration:underline;
-}
-
-/* DELETE */
 .del{
-  margin-left:6px;
-  color:#fff;
-  font-size:18px;
+  color:white;
   cursor:pointer;
   opacity:0.6;
 }
-
-.del:hover{
-  opacity:1;
-}
+.del:hover{ opacity:1; }
 </style>
 </head>
 
@@ -137,14 +101,11 @@ html,body{
 <div id="workspace"></div>
 
 <script>
-const workspace = document.getElementById("workspace");
+const ws = document.getElementById("workspace");
 let nodes = [];
 
-// =====================
-// PASTE URL
-// =====================
 document.addEventListener("paste", async (e) => {
-  const text = (e.clipboardData || window.clipboardData).getData("text");
+  const text = e.clipboardData.getData("text");
   if (!text.startsWith("http")) return;
 
   const r = await fetch("/api/title?url=" + encodeURIComponent(text));
@@ -158,104 +119,91 @@ document.addEventListener("paste", async (e) => {
     y: innerHeight/2
   });
 
-  workspace.appendChild(node.el);
+  ws.appendChild(node.el);
   nodes.push(node);
   save();
 });
 
-// =====================
-// CREATE NODE
-// =====================
-function createNode(data){
-
+function createNode(d){
   const el = document.createElement("div");
   el.className = "node";
 
-  el.style.left = (data.x || 100) + "px";
-  el.style.top  = (data.y || 100) + "px";
+  el.style.left = (d.x||100)+"px";
+  el.style.top = (d.y||100)+"px";
 
-  el.innerHTML = `
-    <div class="dot"></div>
+  const dot = document.createElement("div");
+  dot.className = "dot";
 
-    <a class="title"
-       href="${data.link}"
-       target="_blank">
-      ${data.title}
-    </a>
+  const a = document.createElement("a");
+  a.className = "title";
+  a.href = d.link;
+  a.target = "_blank";
+  a.textContent = d.title;
 
-    <span class="del">✖</span>
-  `;
+  const del = document.createElement("span");
+  del.className = "del";
+  del.textContent = "✖";
 
-  const dot = el.querySelector(".dot");
-  const del = el.querySelector(".del");
+  el.appendChild(dot);
+  el.appendChild(a);
+  el.appendChild(del);
 
-  // DELETE
   del.onclick = () => {
     el.remove();
-    nodes = nodes.filter(n => n.id !== data.id);
+    nodes = nodes.filter(n => n.id !== d.id);
     save();
   };
 
-  // DRAG
-  let drag = false;
-  let dx = 0;
-  let dy = 0;
+  let drag=false,dx=0,dy=0;
 
-  dot.onpointerdown = (e) => {
-    drag = true;
-    dx = e.clientX - el.offsetLeft;
-    dy = e.clientY - el.offsetTop;
+  dot.onpointerdown = e => {
+    drag=true;
+    dx=e.clientX-el.offsetLeft;
+    dy=e.clientY-el.offsetTop;
   };
 
-  window.onpointermove = (e) => {
-    if (!drag) return;
-    el.style.left = (e.clientX - dx) + "px";
-    el.style.top  = (e.clientY - dy) + "px";
+  window.onpointermove = e => {
+    if(!drag) return;
+    el.style.left=(e.clientX-dx)+"px";
+    el.style.top=(e.clientY-dy)+"px";
   };
 
   window.onpointerup = () => {
-    if (!drag) return;
-    drag = false;
+    drag=false;
     save();
   };
 
   return {
-    id: data.id,
+    id:d.id,
     el,
-    get: () => ({
-      id: data.id,
-      title: data.title,
-      link: data.link,
-      x: parseInt(el.style.left),
-      y: parseInt(el.style.top)
+    get:()=>({
+      id:d.id,
+      title:d.title,
+      link:d.link,
+      x:parseInt(el.style.left),
+      y:parseInt(el.style.top)
     })
   };
 }
 
-// =====================
-// SAVE
-// =====================
 async function save(){
-  await fetch("/api/save", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      cards: nodes.map(n => n.get())
+  await fetch("/api/save",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      cards:nodes.map(n=>n.get())
     })
   });
 }
 
-// =====================
-// LOAD
-// =====================
 async function load(){
-  const res = await fetch("/api/load");
-  const data = await res.json();
+  const r = await fetch("/api/load");
+  const d = await r.json();
 
-  for (const item of (data.cards || [])){
-    const node = createNode(item);
-    workspace.appendChild(node.el);
-    nodes.push(node);
+  for(const i of (d.cards||[])){
+    const n = createNode(i);
+    ws.appendChild(n.el);
+    nodes.push(n);
   }
 }
 
