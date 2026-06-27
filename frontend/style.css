@@ -22,16 +22,58 @@ button {
 }
 
 .legend {
-  font-size: 12px;
-  opacity: 0.7;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.8;
+  opacity: 0.85;
 }
 
+/* workspace */
 #workspace {
   flex: 1;
   position: relative;
   overflow: hidden;
 }
+
+/* ===== ЗОНЫ (круги) ===== */
+
+.zone {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  opacity: 0.18;
+  filter: blur(0px);
+}
+
+/* старый центр */
+.z1 {
+  background: red;
+  left: 20%;
+  top: 30%;
+}
+
+/* новая периферия */
+.z2 {
+  background: green;
+  left: 55%;
+  top: 30%;
+}
+
+/* новый центр */
+.z3 {
+  background: blue;
+  left: 40%;
+  top: 10%;
+}
+
+/* старая периферия */
+.z4 {
+  background: yellow;
+  left: 40%;
+  top: 50%;
+}
+
+/* ===== карточки ===== */
 
 .card {
   position: absolute;
@@ -41,6 +83,7 @@ button {
   padding: 10px;
   color: white;
   box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  z-index: 10;
 }
 
 .handle {
