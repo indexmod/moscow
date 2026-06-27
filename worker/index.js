@@ -14,7 +14,7 @@ export default {
     }
 
     // =====================
-    // GET TITLE (REAL FRONTMATTER)
+    // GET TITLE FROM INDEXMOD MD
     // =====================
     if (url.pathname === "/api/title") {
       const page = url.searchParams.get("url");
@@ -24,17 +24,12 @@ export default {
         const slug = u.pathname.split("/").filter(Boolean).pop();
 
         const api = `${u.origin}/_get/${slug}`;
-
         const res = await fetch(api);
         const data = await res.json();
 
         const content = data.content || "";
 
-        // ищем frontmatter:
-        // ---
-        // title: Винзавод
-        // slug: vinzavod
-        // ---
+        // frontmatter title
         const match = content.match(
           /---[\s\S]*?title:\s*(.+?)[\r\n]+/i
         );
@@ -46,9 +41,7 @@ export default {
         });
 
       } catch (e) {
-        return Response.json({
-          title: "Untitled"
-        });
+        return Response.json({ title: "Untitled" });
       }
     }
 
@@ -57,10 +50,7 @@ export default {
     // =====================
     if (url.pathname === "/api/load") {
       const raw = await env.MOSCOW_DB.get("state");
-
-      return Response.json(
-        raw ? JSON.parse(raw) : { cards: [] }
-      );
+      return Response.json(raw ? JSON.parse(raw) : { cards: [] });
     }
 
     // =====================
@@ -68,12 +58,7 @@ export default {
     // =====================
     if (url.pathname === "/api/save") {
       const data = await req.json();
-
-      await env.MOSCOW_DB.put(
-        "state",
-        JSON.stringify(data)
-      );
-
+      await env.MOSCOW_DB.put("state", JSON.stringify(data));
       return Response.json({ ok: true });
     }
 
@@ -81,97 +66,85 @@ export default {
   }
 };
 
-const html = `
-<!doctype html>
+const html = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-
 <title>Moscow</title>
 
 <style>
-
-html, body {
-  margin: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #0f0f10;
-  font-family: Arial, sans-serif;
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#0f0f10;
+  font-family:Arial,sans-serif;
 }
 
-#map {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-#map circle {
-  opacity: .12;
-}
-
-#workspace {
-  position: fixed;
-  inset: 0;
+#workspace{
+  position:fixed;
+  inset:0;
 }
 
 /* NODE */
-
-.node {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.node{
+  position:absolute;
+  display:flex;
+  align-items:center;
+  gap:10px;
 }
 
-.handle {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: white;
-  cursor: grab;
-  flex: none;
+/* DOT */
+.dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#fff;
+  cursor:grab;
+  flex:none;
 }
 
-.title {
-  color: white;
-  text-decoration: none;
-  font-size: 22px;
+/* TITLE */
+.title{
+  color:#fff;
+  font-size:20px;
+  text-decoration:none;
+  cursor:pointer;
 }
 
-.title:hover {
-  text-decoration: underline;
+.title:hover{
+  text-decoration:underline;
 }
 
+/* DELETE */
+.del{
+  margin-left:6px;
+  color:#fff;
+  font-size:18px;
+  cursor:pointer;
+  opacity:0.6;
+}
+
+.del:hover{
+  opacity:1;
+}
 </style>
 </head>
 
 <body>
 
-<svg id="map">
-
-<circle cx="300" cy="300" r="180" fill="red"/>
-<circle cx="650" cy="300" r="180" fill="green"/>
-<circle cx="475" cy="180" r="180" fill="blue"/>
-<circle cx="475" cy="480" r="180" fill="yellow"/>
-
-</svg>
-
 <div id="workspace"></div>
 
 <script>
-
 const workspace = document.getElementById("workspace");
-let cards = [];
+let nodes = [];
 
-/* ===================== */
-/* PASTE */
-/* ===================== */
-
+// =====================
+// PASTE URL
+// =====================
 document.addEventListener("paste", async (e) => {
   const text = (e.clipboardData || window.clipboardData).getData("text");
-
   if (!text.startsWith("http")) return;
 
   const r = await fetch("/api/title?url=" + encodeURIComponent(text));
@@ -179,40 +152,56 @@ document.addEventListener("paste", async (e) => {
 
   const node = createNode({
     id: crypto.randomUUID(),
-    title: meta.title || "Untitled",
+    title: meta.title,
     link: text,
-    x: window.innerWidth / 2,
-    y: window.innerHeight / 2
+    x: innerWidth/2,
+    y: innerHeight/2
   });
 
   workspace.appendChild(node.el);
-  cards.push(node);
+  nodes.push(node);
   save();
 });
 
-/* NODE */
+// =====================
+// CREATE NODE
+// =====================
+function createNode(data){
 
-function createNode(data) {
   const el = document.createElement("div");
   el.className = "node";
 
   el.style.left = (data.x || 100) + "px";
-  el.style.top = (data.y || 100) + "px";
+  el.style.top  = (data.y || 100) + "px";
 
   el.innerHTML = `
-    <div class="handle"></div>
-    <a class="title" href="${data.link}" target="_blank">
+    <div class="dot"></div>
+
+    <a class="title"
+       href="${data.link}"
+       target="_blank">
       ${data.title}
     </a>
+
+    <span class="del">✖</span>
   `;
 
-  const handle = el.querySelector(".handle");
+  const dot = el.querySelector(".dot");
+  const del = el.querySelector(".del");
 
+  // DELETE
+  del.onclick = () => {
+    el.remove();
+    nodes = nodes.filter(n => n.id !== data.id);
+    save();
+  };
+
+  // DRAG
   let drag = false;
   let dx = 0;
   let dy = 0;
 
-  handle.onpointerdown = (e) => {
+  dot.onpointerdown = (e) => {
     drag = true;
     dx = e.clientX - el.offsetLeft;
     dy = e.clientY - el.offsetTop;
@@ -221,7 +210,7 @@ function createNode(data) {
   window.onpointermove = (e) => {
     if (!drag) return;
     el.style.left = (e.clientX - dx) + "px";
-    el.style.top = (e.clientY - dy) + "px";
+    el.style.top  = (e.clientY - dy) + "px";
   };
 
   window.onpointerup = () => {
@@ -243,35 +232,35 @@ function createNode(data) {
   };
 }
 
-/* SAVE */
-
-async function save() {
-  const state = cards.map(c => c.get());
-
+// =====================
+// SAVE
+// =====================
+async function save(){
   await fetch("/api/save", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cards: state })
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      cards: nodes.map(n => n.get())
+    })
   });
 }
 
-/* LOAD */
-
-async function load() {
+// =====================
+// LOAD
+// =====================
+async function load(){
   const res = await fetch("/api/load");
   const data = await res.json();
 
-  for (const item of (data.cards || [])) {
+  for (const item of (data.cards || [])){
     const node = createNode(item);
     workspace.appendChild(node.el);
-    cards.push(node);
+    nodes.push(node);
   }
 }
 
 load();
-
 </script>
 
 </body>
-</html>
-`;
+</html>`;
