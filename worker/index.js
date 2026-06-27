@@ -22,7 +22,6 @@ export default {
       try {
         const u = new URL(page);
 
-        // защита источника
         if (!u.hostname.includes("indexmod.press")) {
           return Response.json({ title: "Untitled" });
         }
@@ -42,7 +41,6 @@ export default {
         const data = await res.json();
         const content = data?.content || "";
 
-        // стабильный frontmatter парсер
         const block = content.match(/---([\s\S]*?)---/);
         let title = null;
 
@@ -97,9 +95,25 @@ html,body{
   font-family:Arial;
 }
 
+/* ===================== */
+/* BACKGROUND SVG */
+/* ===================== */
+#bg{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:0;
+  pointer-events:none;
+}
+
+/* ===================== */
+/* WORKSPACE */
+/* ===================== */
 #workspace{
   position:fixed;
   inset:0;
+  z-index:1;
 }
 
 .node{
@@ -130,12 +144,59 @@ html,body{
   margin-left:4px;
 }
 .del:hover{ opacity:1; }
+
+/* ===================== */
+/* LEGEND */
+/* ===================== */
+.legend{
+  position:fixed;
+  right:18px;
+  bottom:18px;
+  z-index:2;
+  color:white;
+  font-size:12px;
+  font-family:Arial;
+  opacity:0.75;
+  pointer-events:none;
+}
+
+.legend div{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-top:4px;
+}
+
+.legend i{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  display:block;
+}
 </style>
 </head>
 
 <body>
 
+<!-- ===================== -->
+<!-- 4 INTERSECTING CIRCLES -->
+<!-- ===================== -->
+<svg id="bg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+  <circle cx="35" cy="50" r="28" fill="none" stroke="red" stroke-width="0.6" opacity="0.25"/>
+  <circle cx="65" cy="50" r="28" fill="none" stroke="blue" stroke-width="0.6" opacity="0.25"/>
+  <circle cx="50" cy="35" r="28" fill="none" stroke="green" stroke-width="0.6" opacity="0.25"/>
+  <circle cx="50" cy="65" r="28" fill="none" stroke="orange" stroke-width="0.6" opacity="0.25"/>
+</svg>
+
 <div id="workspace"></div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div><i style="background:red"></i> старые</div>
+  <div><i style="background:blue"></i> новые</div>
+  <div><i style="background:green"></i> дальние</div>
+  <div><i style="background:orange"></i> центральные</div>
+</div>
 
 <script>
 const ws = document.getElementById("workspace");
